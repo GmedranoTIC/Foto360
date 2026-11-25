@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a1a2f">
+<title>Fotografía esférica · GmedranoTIC</title>
+<style>
+*{box-sizing:border-box;margin:0}
+:root{--bg:#0a1a2f;--pan:#12294a;--ln:#27456e;--ac:#ffb703;--ok:#3ddc84;--tx:#eaf2ff}
+html,body{height:100%;background:var(--bg);color:var(--tx);font:16px/1.4 "Trebuchet MS","Segoe UI",system-ui,sans-serif;overflow:hidden}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:safe center;gap:.9rem;overflow:auto;
+ padding:max(env(safe-area-inset-top),.8rem) max(env(safe-area-inset-right),.8rem) max(env(safe-area-inset-bottom),.8rem) max(env(safe-area-inset-left),.8rem)}
+.screen.on{display:flex}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--ln);background:var(--pan);border-radius:.7rem;padding:.65rem 1rem;min-height:44px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+button.pri{background:var(--ac);color:#10213a;border-color:var(--ac);font-weight:700}
+button:disabled{opacity:.45;cursor:not-allowed}
+h2{font-size:clamp(1.3rem,4vw,1.9rem)}
+/* marca de agua */
+.wm::after,.wm::before{content:"GmedranoTIC";position:fixed;pointer-events:none;z-index:9;font-weight:800;color:#fff}
+.wm::after{right:max(env(safe-area-inset-right),14px);bottom:max(env(safe-area-inset-bottom),10px);font-size:clamp(.9rem,2.6vw,1.2rem);opacity:.75;text-shadow:0 1px 4px #000}
+.wm::before{left:50%;top:50%;transform:translate(-50%,-50%) rotate(-24deg);font-size:min(15vw,120px);opacity:.06;white-space:nowrap}
+/* portada */
+.stage{position:relative;width:min(100vw,calc((100dvh - 8.5rem)*16/9));aspect-ratio:16/9;border-radius:1rem;overflow:hidden;
+ background:radial-gradient(ellipse at 28% 50%,#1c4f8f 0,#0d2748 55%,#071428 100%);box-shadow:0 10px 40px #0008}
+#sph{position:absolute;left:5%;top:50%;transform:translateY(-50%);height:84%;aspect-ratio:1;border-radius:50%;box-shadow:0 0 50px #4aa3ff66,inset -18px -14px 40px #0007}
+#man{position:absolute;right:3%;bottom:0;height:97%}
+.credit{font-size:clamp(1rem,3.2vw,1.7rem);text-align:center;max-width:44ch;font-weight:700;letter-spacing:.01em}
+.credit b{color:var(--ac)}
+/* niveles */
+.bar{display:flex;gap:.6rem;align-items:center;width:min(100%,760px);flex-wrap:wrap}
+.bar h2{flex:1}
+#lvl{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;width:min(100%,760px)}
+.card{display:flex;flex-direction:column;gap:.3rem;text-align:left;padding:.8rem}
+.card small{opacity:.75}
+.card i{display:block;height:6px;border-radius:3px;background:#0006;overflow:hidden}
+.card u{display:block;height:100%;background:var(--ok)}
+.row{display:flex;gap:.6rem;flex-wrap:wrap;width:min(100%,760px);align-items:center}
+.row label{display:flex;gap:.5rem;align-items:center;flex:1;min-width:220px}
+.row input[type=range]{flex:1}
+/* captura */
+#cap{padding:0;justify-content:stretch}
+#vid{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+.ov{position:absolute;z-index:6}
+#top{left:0;right:0;top:0;display:flex;gap:.5rem;align-items:center;padding:max(env(safe-area-inset-top),.6rem) .7rem;background:linear-gradient(#000a,transparent)}
+#top span{flex:1;font-weight:700;text-shadow:0 1px 3px #000}
+#hint{left:50%;transform:translateX(-50%);top:4.6rem;background:#000b;border-radius:2rem;padding:.4rem 1rem;font-weight:700;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+#rad{left:max(env(safe-area-inset-left),.7rem);bottom:max(env(safe-area-inset-bottom),.7rem);width:130px;height:130px;background:#000a;border-radius:50%}
+#shut{left:50%;transform:translateX(-50%);bottom:max(env(safe-area-inset-bottom),1rem);width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:#ffffff55;padding:0}
+#undo{right:max(env(safe-area-inset-right),.7rem);bottom:calc(max(env(safe-area-inset-bottom),.7rem) + 2.4rem)}
+#fl{inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
+/* resultado */
+#pc{display:none}
+#vw{width:min(100%,calc((100dvh - 15rem)*16/9),760px);min-width:280px;aspect-ratio:16/9;border-radius:.8rem;background:#000;touch-action:none;cursor:grab}
+progress{width:min(100%,520px);height:14px}
+.form{display:grid;gap:.5rem;width:min(100%,760px)}
+.form input,.form textarea,.form select{width:100%;background:var(--pan);border:1px solid var(--ln);border-radius:.5rem;padding:.55rem}
+.form label{display:grid;gap:.2rem;font-size:.9rem}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<section id="cover" class="screen on">
+ <div class="stage">
+  <canvas id="sph" aria-label="Esfera con textura esférica"></canvas>
+  <!-- Ilustración vectorial. Para usar tu foto real: sustituye este <svg> por <img id="man" src="data:image/jpeg;base64,..."> -->
+  <svg id="man" viewBox="0 0 400 460" role="img" aria-label="Hombre con barba y camiseta GmedranoTIC">
+   <path d="M20 460C20 372 100 336 200 336s180 36 180 124z" fill="#1b4b8f"/>
+   <path d="M150 338c14 30 86 30 100 0l-14-12c-12 22-60 22-72 0z" fill="#0f2f5f"/>
+   <rect x="168" y="285" width="64" height="60" rx="22" fill="#cf9a70"/>
+   <ellipse cx="116" cy="205" rx="14" ry="26" fill="#d9a67b"/><ellipse cx="284" cy="205" rx="14" ry="26" fill="#d9a67b"/>
+   <ellipse cx="200" cy="200" rx="86" ry="102" fill="#e3b48a"/>
+   <path d="M108 195C92 70 308 70 292 195c-8-52-44-78-92-78s-84 26-92 78z" fill="#2b1d14"/>
+   <path d="M112 198c2 104 48 138 88 138s86-34 88-138c-18 44-46 62-88 62s-70-18-88-62z" fill="#3a2518"/>
+   <path d="M160 262c20-14 60-14 80 0-24-6-56-6-80 0z" fill="#2b1d14"/>
+   <path d="M174 282q26 18 52 0" fill="none" stroke="#e3b48a" stroke-width="7" stroke-linecap="round"/>
+   <path d="M200 205l-9 34h18" fill="none" stroke="#c48a63" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+   <circle cx="164" cy="196" r="9" fill="#fff"/><circle cx="236" cy="196" r="9" fill="#fff"/>
+   <circle cx="165" cy="197" r="5" fill="#2b1d14"/><circle cx="237" cy="197" r="5" fill="#2b1d14"/>
+   <path d="M146 176q18-12 38-2M254 176q-18-12-38-2" fill="none" stroke="#2b1d14" stroke-width="7" stroke-linecap="round"/>
+   <text x="200" y="410" text-anchor="middle" font-family="Trebuchet MS,Segoe UI,sans-serif" font-weight="800" font-size="37" fill="#fff">GmedranoTIC</text>
+  </svg>
+ </div>
+ <p class="credit">Aplicación de fotografía esférica creada por <b>@GmedranoTIC</b></p>
+ <button class="pri" id="go">Comenzar</button>
+</section>
+
+<!-- SELECTOR DE NIVELES -->
+<section id="levels" class="screen wm">
+ <div class="bar"><button id="home" aria-label="Volver a la portada">⌂ Portada</button><h2>Selector de niveles</h2></div>
+ <p style="width:min(100%,760px);opacity:.85">Gira el móvil a <b>horizontal</b>, colócate en un punto fijo y gira sobre ti mismo. La foto se dispara sola al apuntar a cada punto del nivel.</p>
+ <div id="lvl"></div>
+ <div class="row">
+  <label>Campo de visión de la cámara (lado largo): <input type="range" id="fov" min="40" max="100" value="65"><b id="fv">65°</b></label>
+  <label>Tamaño final: <select id="sz"><option value="2048">2048×1024 (rápido)</option><option value="4096" selected>4096×2048 (estándar)</option><option value="8192">8192×4096 (alto, requiere memoria)</option></select></label>
+ </div>
+ <div class="row"><button class="pri" id="gen" disabled>Generar panorámica</button><button id="clr">Borrar todo</button></div>
+</section>
+
+<!-- CAPTURA -->
+<section id="cap" class="screen wm">
+ <video id="vid" playsinline muted></video>
+ <div id="top" class="ov"><button id="back">← Niveles</button><span id="info"></span></div>
+ <div id="hint" class="ov">…</div>
+ <canvas id="rad" class="ov" width="130" height="130"></canvas>
+ <button id="shut" class="ov" aria-label="Disparar manualmente"></button>
+ <button id="undo" class="ov">Deshacer</button>
+ <div id="fl" class="ov"></div>
+</section>
+
+<!-- RESULTADO -->
+<section id="res" class="screen wm">
+ <div class="bar"><button id="back2">← Niveles</button><h2>Panorámica equirectangular</h2></div>
+ <progress id="prog" value="0" max="1"></progress>
+ <canvas id="pc"></canvas>
+ <canvas id="vw" width="480" height="270" aria-label="Vista previa: arrastra para mirar alrededor"></canvas>
+ <div class="form" id="form" hidden>
+  <label>Título<input id="t" value="Panorama 360°"></label>
+  <label>Descripción educativa<textarea id="d" rows="2" placeholder="Ej.: Laboratorio de Ciencias, 2.º ESO"></textarea></label>
+  <label>Materia / etiquetas (separadas por comas)<input id="k" placeholder="Geografía, Visita virtual"></label>
+  <label>Autor<input id="a" value="@GmedranoTIC"></label>
+  <label style="display:flex;gap:.5rem;align-items:center"><input type="checkbox" id="nw" checked style="width:auto"> Sello “GmedranoTIC” en el nadir</label>
+  <button class="pri" id="dl">Descargar JPG equirectangular (con metadatos)</button>
+ </div>
+</section>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],D=Math.PI/180;
+/* o = desfase (fracción de paso) de cada anillo */
+const LV=[{n:'Cénit',p:90,c:1,o:0},{n:'Alto 70°',p:70,c:4,o:0},{n:'Alto 35°',p:35,c:9,o:.5},{n:'Horizonte 0°',p:0,c:12,o:0},{n:'Bajo −35°',p:-35,c:9,o:.5},{n:'Bajo −70°',p:-70,c:4,o:0},{n:'Nadir',p:-90,c:1,o:0}];
+let shots=[],ref=null,cur=0,ori={a:0,b:0,g:0,on:0},stream=null,last=0,prev=null,spd=99,pano=null,vy=0,vp=0,vf=75;
+const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
+
+function show(id){$$('.screen').forEach(s=>s.classList.toggle('on',s.id==id));if(id!='cap')stopCam();if(id=='cover')loop();if(id=='levels')renderLv()}
+function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
+
+/* ---------- Portada: esfera texturizada ---------- */
+let SP=null,rot=0,looping=0;
+function tex(){const c=document.createElement('canvas');c.width=512;c.height=256;const g=c.getContext('2d');
+ const q=g.createLinearGradient(0,0,0,256);q.addColorStop(0,'#2a6fdb');q.addColorStop(.49,'#9bdcff');q.addColorStop(.5,'#3c8d4a');q.addColorStop(1,'#1d4d2b');g.fillStyle=q;g.fillRect(0,0,512,256);
+ g.fillStyle='#ffd23f';g.beginPath();g.arc(100,70,18,0,7);g.fill();
+ g.fillStyle='#5b6b86';for(let i=0;i<14;i++){g.beginPath();g.moveTo(i*40,128);g.lineTo(i*40+20,92-(i*37%30));g.lineTo(i*40+40,128);g.fill()}
+ g.strokeStyle='#ffffff66';for(let i=0;i<=16;i++){g.beginPath();g.moveTo(i*32,0);g.lineTo(i*32,256);g.stroke()}
+ for(let i=1;i<8;i++){g.beginPath();g.moveTo(0,i*32);g.lineTo(512,i*32);g.stroke()}
+ g.fillStyle='#fff';g.font='bold 30px sans-serif';g.fillText('360°',190,200);g.fillText('GmedranoTIC',300,60);g.fillText('GmedranoTIC',20,200);
+ return g.getImageData(0,0,512,256).data}
+function initSph(){const c=$('#sph'),S=c.width=c.height=360,g=c.getContext('2d');
+ SP={g,S,im:g.createImageData(S,S),T:tex(),U:new Float32Array(S*S),V:new Int16Array(S*S),L:new Float32Array(S*S)};
+ for(let y=0;y<S;y++)for(let x=0;x<S;x++){const px=(x+.5)/S*2-1,py=1-(y+.5)/S*2,r=px*px+py*py,i=y*S+x;
+  if(r>1){SP.L[i]=-1;continue}const z=Math.sqrt(1-r);SP.U[i]=Math.atan2(px,z)/(2*Math.PI);SP.V[i]=Math.min(255,(.5-Math.asin(py)/Math.PI)*256|0);SP.L[i]=.3+.7*z}}
+function loop(){if(looping)return;looping=1;(function f(){if(!$('#cover').classList.contains('on')){looping=0;return}
+ if(!SP)initSph();const{S,im,T,U,V,L,g}=SP,o=im.data;rot=(rot+.002)%1;
+ for(let i=0;i<S*S;i++){const j=i*4;if(L[i]<0){o[j+3]=0;continue}const k=(V[i]*512+(((U[i]+rot)%1+1)%1*512|0))*4;o[j]=T[k]*L[i];o[j+1]=T[k+1]*L[i];o[j+2]=T[k+2]*L[i];o[j+3]=255}
+ g.putImageData(im,0,0);requestAnimationFrame(f)})()}
+
+/* ---------- Orientación ---------- */
+function mat(a,b,g,o){const ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b),cg=Math.cos(g),sg=Math.sin(g),
+ c0=[ca*cg-sa*sb*sg,sa*cg+ca*sb*sg,-cb*sg],c1=[-sa*cb,ca*cb,sb],c2=[ca*sg+sa*sb*cg,sa*sg-ca*sb*cg,cb*cg],co=Math.cos(o),so=Math.sin(o);
+ return{x:c0.map((v,i)=>v*co-c1[i]*so),y:c0.map((v,i)=>v*so+c1[i]*co),z:c2}}
+function pose(){const o=(screen.orientation?screen.orientation.angle:window.orientation||0)*D,m=mat(ori.a*D,ori.b*D,ori.g*D,o);
+ m.f=[-m.z[0],-m.z[1],-m.z[2]];m.yaw=Math.atan2(m.f[0],m.f[1])/D;m.pitch=Math.asin(Math.max(-1,Math.min(1,m.f[2])))/D;return m}
+function onOri(e){if(e.alpha==null)return;ori.a=e.alpha;ori.b=e.beta;ori.g=e.gamma;const p=pose(),t=performance.now();
+ if(prev){const dt=(t-prev.t)/1000||.016;spd=Math.acos(Math.min(1,p.f[0]*prev.f[0]+p.f[1]*prev.f[1]+p.f[2]*prev.f[2]))/D/dt}
+ prev={f:p.f,t};if($('#cap').classList.contains('on'))hud(p)}
+
+/* ---------- Niveles ---------- */
+function renderLv(){$('#lvl').innerHTML=LV.map((l,i)=>{const n=shots.filter(s=>s.l==i).length;
+ return `<button class="card" data-i="${i}"><b>${i+1}. ${l.n}</b><small>${l.c} foto${l.c>1?'s':''} · inclinación ${l.p>0?'+':''}${l.p}°</small><i><u style="width:${Math.min(100,n/l.c*100)}%"></u></i><small>${n}/${l.c}</small></button>`}).join('');
+ $('#gen').textContent=`Generar panorámica (${shots.length} fotos)`;$('#gen').disabled=shots.length<2}
+async function openLv(i){cur=i;
+ try{if(window.DeviceOrientationEvent&&DeviceOrientationEvent.requestPermission&&await DeviceOrientationEvent.requestPermission()!='granted')throw Error('permiso de sensores denegado');
+  if(!ori.on){addEventListener('deviceorientation',onOri);ori.on=1}
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+  $('#vid').srcObject=stream;await $('#vid').play();show('cap');hud()}
+ catch(e){alert('No se pudo iniciar la cámara o los sensores ('+e.message+').\nLos móviles solo permiten cámara y giroscopio en HTTPS o localhost: sirve esta carpeta con un servidor local (p. ej. "python3 -m http.server") o aloja el archivo en HTTPS.')}}
+
+/* ---------- HUD y disparo ---------- */
+function tgts(p){const L=LV[cur],r=ref??p.yaw;return Array.from({length:L.c},(_,i)=>({i,y:L.c==1?0:r+(i+(ref!=null?L.o:0))*360/L.c}))}
+function hud(p=pose()){const L=LV[cur],T=tgts(p),dn=i=>shots.some(s=>s.l==cur&&s.i==i),tp=L.p*D;
+ const ang=t=>{const y=t.y*D;return Math.acos(Math.max(-1,Math.min(1,Math.cos(tp)*Math.sin(y)*p.f[0]+Math.cos(tp)*Math.cos(y)*p.f[1]+Math.sin(tp)*p.f[2])))/D};
+ let best=null,bd=999;T.forEach(t=>{if(!dn(t.i)){const a=ang(t);if(a<bd){bd=a;best=t}}});
+ const dp=p.pitch-L.p,n=shots.filter(s=>s.l==cur).length,tol=L.c==1?10:6;
+ const g=$('#rad').getContext('2d');g.clearRect(0,0,130,130);g.strokeStyle='#fff6';g.lineWidth=1;g.beginPath();g.arc(65,65,48,0,7);g.stroke();
+ T.forEach(t=>{const th=(t.y-p.yaw)*D,x=L.c==1?65:65+48*Math.sin(th),y=L.c==1?65:65-48*Math.cos(th);g.fillStyle=dn(t.i)?'#3ddc84':t==best?'#ffb703':'#fff8';g.beginPath();g.arc(x,y,t==best?8:6,0,7);g.fill()});
+ g.fillStyle=Math.abs(dp)<7?'#3ddc84':'#ff7a59';g.beginPath();g.moveTo(65,8);g.lineTo(58,22);g.lineTo(72,22);g.fill();
+ $('#info').textContent=`${L.n} · ${n}/${L.c}`;
+ let h;if(!best)h='✔ Nivel completo';else if(Math.abs(dp)>=7)h=(dp>0?'↓ Baja':'↑ Sube')+` la cámara (${Math.abs(dp|0)}°)`;
+ else if(bd<tol)h='Mantén quieto…';else{const d=((best.y-p.yaw+540)%360)-180;h=L.c==1?'Apunta al punto':d>0?'Gira a la derecha →':'← Gira a la izquierda'}
+ $('#hint').textContent=h;
+ if(best&&bd<tol&&spd<30&&performance.now()-last>800)snap(best.i,1)}
+function snap(i){const v=$('#vid');if(!v.videoWidth)return;const k=1024/Math.max(v.videoWidth,v.videoHeight),w=v.videoWidth*k|0,h=v.videoHeight*k|0;
+ cv.width=w;cv.height=h;cx.drawImage(v,0,0,w,h);const p=pose();if(i==null)i=100+shots.filter(s=>s.l==cur).length;
+ shots.push({l:cur,i,x:p.x,y:p.y,z:p.z,w,h,d:cx.getImageData(0,0,w,h).data});if(ref==null&&LV[cur].c>1)ref=p.yaw;last=performance.now();
+ const f=$('#fl');f.style.opacity=.7;setTimeout(()=>f.style.opacity=0,80);navigator.vibrate&&navigator.vibrate(30);hud()}
+
+/* ---------- Stitching ---------- */
+async function build(){show('res');$('#form').hidden=1;$('#vw').hidden=1;$('#prog').hidden=0;
+ const W=+$('#sz').value,H=W/2,pc=$('#pc');pc.width=W;pc.height=H;const g=pc.getContext('2d'),im=g.createImageData(W,H),o=im.data,fov=+$('#fov').value;
+ const S=shots.map(s=>({...s,f:Math.max(s.w,s.h)/2/Math.tan(fov/2*D)}));
+ for(let y=0;y<H;y++){const lat=(.5-(y+.5)/H)*Math.PI,cl=Math.cos(lat),dz=Math.sin(lat);
+  for(let x=0;x<W;x++){const lon=((x+.5)/W*2-1)*Math.PI,dx=cl*Math.sin(lon),dy=cl*Math.cos(lon);let r=0,gg=0,b=0,ws=0;
+   for(const s of S){const dep=-(dx*s.z[0]+dy*s.z[1]+dz*s.z[2]);if(dep<.05)continue;
+    const nx=s.f*(dx*s.x[0]+dy*s.x[1]+dz*s.x[2])/dep/(s.w/2),ny=s.f*(dx*s.y[0]+dy*s.y[1]+dz*s.y[2])/dep/(s.h/2);
+    if(nx>=1||nx<=-1||ny>=1||ny<=-1)continue;
+    const q=(1-nx*nx)*(1-ny*ny),wt=q*q,u=(nx+1)/2*(s.w-1),v=(1-ny)/2*(s.h-1),x0=u|0,y0=v|0,fx=u-x0,fy=v-y0,k=(y0*s.w+x0)*4,k3=k+s.w*4,d=s.d;
+    r+=wt*((d[k]*(1-fx)+d[k+4]*fx)*(1-fy)+(d[k3]*(1-fx)+d[k3+4]*fx)*fy);
+    gg+=wt*((d[k+1]*(1-fx)+d[k+5]*fx)*(1-fy)+(d[k3+1]*(1-fx)+d[k3+5]*fx)*fy);
+    b+=wt*((d[k+2]*(1-fx)+d[k+6]*fx)*(1-fy)+(d[k3+2]*(1-fx)+d[k3+6]*fx)*fy);ws+=wt}
+   const j=(y*W+x)*4;if(ws>0){o[j]=r/ws;o[j+1]=gg/ws;o[j+2]=b/ws}else{o[j]=27;o[j+1]=36;o[j+2]=48}o[j+3]=255}
+  if(y%16==0){$('#prog').value=y/H;await new Promise(r=>setTimeout(r))}}
+ g.putImageData(im,0,0);pano=im;$('#prog').hidden=1;$('#vw').hidden=0;$('#form').hidden=0;view()}
+
+/* ---------- Vista previa ---------- */
+function view(){if(!pano)return;const c=$('#vw'),w=c.width,h=c.height,g=c.getContext('2d'),im=g.createImageData(w,h),o=im.data,W=pano.width,H=pano.height,p=pano.data,
+ sy=Math.sin(vy*D),cy=Math.cos(vy*D),sp=Math.sin(vp*D),cp=Math.cos(vp*D),f=w/2/Math.tan(vf/2*D);
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){const a=x-w/2,b=h/2-y,dx=cp*sy*f+cy*a-sp*sy*b,dy=cp*cy*f-sy*a-sp*cy*b,dz=sp*f+cp*b,
+  px=Math.min(W-1,((Math.atan2(dx,dy)/Math.PI+1)/2*W)|0),py=Math.min(H-1,Math.max(0,((.5-Math.atan2(dz,Math.hypot(dx,dy))/Math.PI)*H)|0)),k=(py*W+px)*4,j=(y*w+x)*4;
+  o[j]=p[k];o[j+1]=p[k+1];o[j+2]=p[k+2];o[j+3]=255}
+ g.putImageData(im,0,0)}
+(()=>{const c=$('#vw');let dr=null;c.onpointerdown=e=>{dr=[e.clientX,e.clientY];c.setPointerCapture(e.pointerId)};c.onpointerup=()=>dr=null;
+ c.onpointermove=e=>{if(!dr)return;vy-=(e.clientX-dr[0])*.25;vp=Math.max(-89,Math.min(89,vp+(e.clientY-dr[1])*.25));dr=[e.clientX,e.clientY];view()};
+ c.onwheel=e=>{e.preventDefault();vf=Math.max(30,Math.min(110,vf+e.deltaY*.05));view()}})();
+
+/* ---------- Exportación con metadatos XMP (GPano + Dublin Core) ---------- */
+async function download(){const pc=$('#pc'),W=pc.width,H=pc.height,g=pc.getContext('2d');
+ if($('#nw').checked){g.save();g.fillStyle='#ffffffcc';g.font=`bold ${H*.03|0}px sans-serif`;g.textAlign='center';g.textBaseline='middle';g.translate(W/2,H*.965);g.scale(7,1);g.fillText('GmedranoTIC',0,0);g.restore()}
+ const bl=await new Promise(r=>pc.toBlob(r,'image/jpeg',.92)),b=new Uint8Array(await bl.arrayBuffer()),
+ e=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])),
+ alt=s=>`<rdf:Alt><rdf:li xml:lang="x-default">${e(s)}</rdf:li></rdf:Alt>`,
+ tags=$('#k').value.split(',').map(s=>s.trim()).filter(Boolean).map(s=>`<rdf:li>${e(s)}</rdf:li>`).join('');
+ const xml=`<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:GPano="http://ns.google.com/photos/1.0/panorama/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" GPano:UsePanoramaViewer="True" GPano:ProjectionType="equirectangular" GPano:FullPanoWidthPixels="${W}" GPano:FullPanoHeightPixels="${H}" GPano:CroppedAreaImageWidthPixels="${W}" GPano:CroppedAreaImageHeightPixels="${H}" GPano:CroppedAreaLeftPixels="0" GPano:CroppedAreaTopPixels="0" GPano:InitialViewHeadingDegrees="0" GPano:PoseHeadingDegrees="0" GPano:SourcePhotosCount="${shots.length}" xmp:CreatorTool="GmedranoTIC Fotografía Esférica"><dc:title>${alt($('#t').value)}</dc:title><dc:description>${alt($('#d').value)}</dc:description><dc:creator><rdf:Seq><rdf:li>${e($('#a').value)}</rdf:li></rdf:Seq></dc:creator><dc:subject><rdf:Bag>${tags}</rdf:Bag></dc:subject><dc:rights>${alt('© '+$('#a').value)}</dc:rights></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
+ const hd=new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0'),xb=new TextEncoder().encode(xml),len=2+hd.length+xb.length;
+ let pos=2;if(b[2]==0xFF&&b[3]==0xE0)pos=4+((b[4]<<8)|b[5]);
+ const out=new Uint8Array(b.length+len+2);out.set(b.subarray(0,pos));out.set([0xFF,0xE1,len>>8,len&255],pos);out.set(hd,pos+4);out.set(xb,pos+4+hd.length);out.set(b.subarray(pos),pos+4+hd.length+xb.length);
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([out],{type:'image/jpeg'}));
+ a.download=($('#t').value||'panorama').replace(/[^\w\-]+/g,'_')+'_equirectangular.jpg';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+
+/* ---------- Eventos ---------- */
+$('#go').onclick=()=>show('levels');$('#home').onclick=()=>show('cover');
+$('#lvl').onclick=e=>{const c=e.target.closest('.card');if(c)openLv(+c.dataset.i)};
+$('#back').onclick=()=>show('levels');$('#back2').onclick=()=>show('levels');
+$('#shut').onclick=()=>{const p=pose(),T=tgts(p),L=LV[cur];let bi=null,bd=999;T.forEach(t=>{if(!shots.some(s=>s.l==cur&&s.i==t.i)){const d=Math.abs(((t.y-p.yaw+540)%360)-180);if(d<bd){bd=d;bi=t.i}}});snap(bi)};
+$('#undo').onclick=()=>{for(let i=shots.length-1;i>=0;i--)if(shots[i].l==cur){shots.splice(i,1);break}if(!shots.length)ref=null;hud()};
+$('#fov').oninput=e=>$('#fv').textContent=e.target.value+'°';
+$('#gen').onclick=build;$('#dl').onclick=download;
+$('#clr').onclick=()=>{if(confirm('¿Borrar todas las fotos capturadas?')){shots=[];ref=null;renderLv()}};
+loop();
+</script>
+</body>
+</html>
