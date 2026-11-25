@@ -7,6 +7,7 @@
 <title>Fotografía esférica · GmedranoTIC</title>
 <style>
 *{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
 :root{--bg:#0a1a2f;--pan:#12294a;--ln:#27456e;--ac:#ffb703;--ok:#3ddc84;--tx:#eaf2ff}
 html,body{height:100%;background:var(--bg);color:var(--tx);font:16px/1.4 "Trebuchet MS","Segoe UI",system-ui,sans-serif;overflow:hidden}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:safe center;gap:.9rem;overflow:auto;
@@ -40,6 +41,7 @@ h2{font-size:clamp(1.3rem,4vw,1.9rem)}
 .row{display:flex;gap:.6rem;flex-wrap:wrap;width:min(100%,760px);align-items:center}
 .row label{display:flex;gap:.5rem;align-items:center;flex:1;min-width:220px}
 .row input[type=range]{flex:1}
+.row select{background:var(--pan);border:1px solid var(--ln);border-radius:.5rem;padding:.45rem;flex:1;min-width:0}
 /* captura */
 #cap{padding:0;justify-content:stretch}
 #vid{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
@@ -95,8 +97,16 @@ progress{width:min(100%,520px);height:14px}
  <p style="width:min(100%,760px);opacity:.85">Gira el móvil a <b>horizontal</b>, colócate en un punto fijo y gira sobre ti mismo. La foto se dispara sola al apuntar a cada punto del nivel.</p>
  <div id="lvl"></div>
  <div class="row">
-  <label>Campo de visión de la cámara (lado largo): <input type="range" id="fov" min="40" max="100" value="65"><b id="fv">65°</b></label>
-  <label>Tamaño final: <select id="sz"><option value="2048">2048×1024 (rápido)</option><option value="4096" selected>4096×2048 (estándar)</option><option value="8192">8192×4096 (alto, requiere memoria)</option></select></label>
+  <label>Densidad de fotos <select id="den"><option value="std">Estándar (40 fotos)</option><option value="hi">Alta (80 fotos)</option><option value="max">Máxima (106 fotos)</option></select></label>
+  <label>Calidad de captura <select id="cq"><option value="1024">Normal (1024 px)</option><option value="1600">Alta (1600 px)</option><option value="1920">Máxima (resolución de cámara)</option></select></label>
+ </div>
+ <div class="row">
+  <label>Campo de visión: <input type="range" id="fov" min="40" max="100" step=".5" value="65"><b id="fv">65°</b></label>
+  <button id="af">Autoajustar</button>
+ </div>
+ <div class="row">
+  <label>Calidad de unión <select id="uq"><option value="0">Básica</option><option value="1">+ compensación de exposición y color</option><option value="2" selected>Máxima: + mezcla multibanda</option></select></label>
+  <label>Tamaño final <select id="sz"><option value="2048">2048×1024 (rápido)</option><option value="4096" selected>4096×2048 (estándar)</option><option value="8192">8192×4096 (alto)</option><option value="12288">12288×6144 (extremo, solo ordenador)</option></select></label>
  </div>
  <div class="row"><button class="pri" id="gen" disabled>Generar panorámica</button><button id="clr">Borrar todo</button></div>
 </section>
@@ -116,6 +126,7 @@ progress{width:min(100%,520px);height:14px}
 <section id="res" class="screen wm">
  <div class="bar"><button id="back2">← Niveles</button><h2>Panorámica equirectangular</h2></div>
  <progress id="prog" value="0" max="1"></progress>
+ <p id="cov" style="max-width:760px;text-align:center"></p>
  <canvas id="pc"></canvas>
  <canvas id="vw" width="480" height="270" aria-label="Vista previa: arrastra para mirar alrededor"></canvas>
  <div class="form" id="form" hidden>
@@ -131,7 +142,12 @@ progress{width:min(100%,520px);height:14px}
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],D=Math.PI/180;
 /* o = desfase (fracción de paso) de cada anillo */
-const LV=[{n:'Cénit',p:90,c:1,o:0},{n:'Alto 70°',p:70,c:4,o:0},{n:'Alto 35°',p:35,c:9,o:.5},{n:'Horizonte 0°',p:0,c:12,o:0},{n:'Bajo −35°',p:-35,c:9,o:.5},{n:'Bajo −70°',p:-70,c:4,o:0},{n:'Nadir',p:-90,c:1,o:0}];
+const SETS={std:[[90,1],[70,4],[35,9],[0,12],[-35,9],[-70,4],[-90,1]],
+ hi:[[90,1],[75,6],[50,11],[25,14],[0,16],[-25,14],[-50,11],[-75,6],[-90,1]],
+ max:[[90,1],[80,3],[60,9],[40,14],[20,17],[0,18],[-20,17],[-40,14],[-60,9],[-80,3],[-90,1]]};
+let LV=[],den='std';
+function setLV(k){LV=SETS[k].map(([p,c],i)=>({p,c,o:i%2?.5:0,n:p==90?'Cénit':p==-90?'Nadir':p==0?'Horizonte 0°':(p>0?'Alto ':'Bajo −')+Math.abs(p)+'°'}))}
+setLV('std');
 let shots=[],ref=null,cur=0,ori={a:0,b:0,g:0,on:0},stream=null,last=0,prev=null,spd=99,pano=null,vy=0,vp=0,vf=75;
 const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
 
@@ -163,7 +179,7 @@ function mat(a,b,g,o){const ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math
  return{x:c0.map((v,i)=>v*co-c1[i]*so),y:c0.map((v,i)=>v*so+c1[i]*co),z:c2}}
 function pose(){const o=(screen.orientation?screen.orientation.angle:window.orientation||0)*D,m=mat(ori.a*D,ori.b*D,ori.g*D,o);
  m.f=[-m.z[0],-m.z[1],-m.z[2]];m.yaw=Math.atan2(m.f[0],m.f[1])/D;m.pitch=Math.asin(Math.max(-1,Math.min(1,m.f[2])))/D;return m}
-function onOri(e){if(e.alpha==null)return;ori.a=e.alpha;ori.b=e.beta;ori.g=e.gamma;const p=pose(),t=performance.now();
+function onOri(e){if(e.alpha==null)return;ori.a=e.alpha;ori.b=e.beta;ori.g=e.gamma;ori.t=performance.now();const p=pose(),t=performance.now();
  if(prev){const dt=(t-prev.t)/1000||.016;spd=Math.acos(Math.min(1,p.f[0]*prev.f[0]+p.f[1]*prev.f[1]+p.f[2]*prev.f[2]))/D/dt}
  prev={f:p.f,t};if($('#cap').classList.contains('on'))hud(p)}
 
@@ -175,7 +191,8 @@ async function openLv(i){cur=i;
  try{if(window.DeviceOrientationEvent&&DeviceOrientationEvent.requestPermission&&await DeviceOrientationEvent.requestPermission()!='granted')throw Error('permiso de sensores denegado');
   if(!ori.on){addEventListener('deviceorientation',onOri);ori.on=1}
   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
-  $('#vid').srcObject=stream;await $('#vid').play();show('cap');hud()}
+  $('#vid').srcObject=stream;await $('#vid').play();ori.t=0;show('cap');hud();
+  setTimeout(()=>{if(!ori.t&&$('#cap').classList.contains('on'))$('#hint').textContent='⚠ Sin datos del giroscopio (usa un móvil con HTTPS o localhost)'},2000)}
  catch(e){alert('No se pudo iniciar la cámara o los sensores ('+e.message+').\nLos móviles solo permiten cámara y giroscopio en HTTPS o localhost: sirve esta carpeta con un servidor local (p. ej. "python3 -m http.server") o aloja el archivo en HTTPS.')}}
 
 /* ---------- HUD y disparo ---------- */
@@ -192,27 +209,76 @@ function hud(p=pose()){const L=LV[cur],T=tgts(p),dn=i=>shots.some(s=>s.l==cur&&s
  else if(bd<tol)h='Mantén quieto…';else{const d=((best.y-p.yaw+540)%360)-180;h=L.c==1?'Apunta al punto':d>0?'Gira a la derecha →':'← Gira a la izquierda'}
  $('#hint').textContent=h;
  if(best&&bd<tol&&spd<30&&performance.now()-last>800)snap(best.i,1)}
-function snap(i){const v=$('#vid');if(!v.videoWidth)return;const k=1024/Math.max(v.videoWidth,v.videoHeight),w=v.videoWidth*k|0,h=v.videoHeight*k|0;
+function snap(i){const v=$('#vid');if(!v.videoWidth)return;if(!ori.t){alert('Este navegador no envía datos del giroscopio, así que las fotos no se pueden orientar. Abre la app en un móvil mediante HTTPS o localhost.');return}const k=Math.min(1,+$('#cq').value/Math.max(v.videoWidth,v.videoHeight)),w=v.videoWidth*k|0,h=v.videoHeight*k|0;
  cv.width=w;cv.height=h;cx.drawImage(v,0,0,w,h);const p=pose();if(i==null)i=100+shots.filter(s=>s.l==cur).length;
- shots.push({l:cur,i,x:p.x,y:p.y,z:p.z,w,h,d:cx.getImageData(0,0,w,h).data});if(ref==null&&LV[cur].c>1)ref=p.yaw;last=performance.now();
+ const d=cx.getImageData(0,0,w,h).data;shots.push({l:cur,i,x:p.x,y:p.y,z:p.z,w,h,d,...small(d,w,h)});if(ref==null&&LV[cur].c>1)ref=p.yaw;last=performance.now();
  const f=$('#fl');f.style.opacity=.7;setTimeout(()=>f.style.opacity=0,80);navigator.vibrate&&navigator.vibrate(30);hud()}
 
 /* ---------- Stitching ---------- */
-async function build(){show('res');$('#form').hidden=1;$('#vw').hidden=1;$('#prog').hidden=0;
- const W=+$('#sz').value,H=W/2,pc=$('#pc');pc.width=W;pc.height=H;const g=pc.getContext('2d'),im=g.createImageData(W,H),o=im.data,fov=+$('#fov').value;
- const S=shots.map(s=>({...s,f:Math.max(s.w,s.h)/2/Math.tan(fov/2*D)}));
- for(let y=0;y<H;y++){const lat=(.5-(y+.5)/H)*Math.PI,cl=Math.cos(lat),dz=Math.sin(lat);
-  for(let x=0;x<W;x++){const lon=((x+.5)/W*2-1)*Math.PI,dx=cl*Math.sin(lon),dy=cl*Math.cos(lon);let r=0,gg=0,b=0,ws=0;
-   for(const s of S){const dep=-(dx*s.z[0]+dy*s.z[1]+dz*s.z[2]);if(dep<.05)continue;
-    const nx=s.f*(dx*s.x[0]+dy*s.x[1]+dz*s.x[2])/dep/(s.w/2),ny=s.f*(dx*s.y[0]+dy*s.y[1]+dz*s.y[2])/dep/(s.h/2);
-    if(nx>=1||nx<=-1||ny>=1||ny<=-1)continue;
-    const q=(1-nx*nx)*(1-ny*ny),wt=q*q,u=(nx+1)/2*(s.w-1),v=(1-ny)/2*(s.h-1),x0=u|0,y0=v|0,fx=u-x0,fy=v-y0,k=(y0*s.w+x0)*4,k3=k+s.w*4,d=s.d;
-    r+=wt*((d[k]*(1-fx)+d[k+4]*fx)*(1-fy)+(d[k3]*(1-fx)+d[k3+4]*fx)*fy);
-    gg+=wt*((d[k+1]*(1-fx)+d[k+5]*fx)*(1-fy)+(d[k3+1]*(1-fx)+d[k3+5]*fx)*fy);
-    b+=wt*((d[k+2]*(1-fx)+d[k+6]*fx)*(1-fy)+(d[k3+2]*(1-fx)+d[k3+6]*fx)*fy);ws+=wt}
-   const j=(y*W+x)*4;if(ws>0){o[j]=r/ws;o[j+1]=gg/ws;o[j+2]=b/ws}else{o[j]=27;o[j+1]=36;o[j+2]=48}o[j+3]=255}
-  if(y%16==0){$('#prog').value=y/H;await new Promise(r=>setTimeout(r))}}
- g.putImageData(im,0,0);pano=im;$('#prog').hidden=1;$('#vw').hidden=0;$('#form').hidden=0;view()}
+function small(d,w,h){const sw=w>>2,sh=h>>2,o=new Uint8ClampedArray(sw*sh*3);
+ for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){let r=0,g=0,b=0;for(let j=0;j<4;j++)for(let i=0;i<4;i++){const k=((y*4+j)*w+x*4+i)*4;r+=d[k];g+=d[k+1];b+=d[k+2]}const q=(y*sw+x)*3;o[q]=r/16;o[q+1]=g/16;o[q+2]=b/16}
+ return{sm:o,sw,sh}}
+function prep(s,fov){const f=Math.max(s.w,s.h)/2/Math.tan(fov/2*D),ha=Math.atan(Math.hypot(s.w,s.h)/2/f);return{...s,f,ha,cd:Math.cos(ha),fw:[-s.z[0],-s.z[1],-s.z[2]],g:[1,1,1]}}
+/* puntos de la esfera vistos por 2+ fotos (miniaturas): [foto,r,g,b,...] */
+function overlaps(S,M,lim){const P=[];for(let i=0;i<M;i++){const dz=1-2*(i+.5)/M,r=Math.sqrt(1-dz*dz),t=i*2.399963,dx=r*Math.cos(t),dy=r*Math.sin(t),h=[];
+ for(let j=0;j<S.length;j++){const s=S[j],dep=-(dx*s.z[0]+dy*s.z[1]+dz*s.z[2]);if(dep<s.cd)continue;
+  const nx=s.f*(dx*s.x[0]+dy*s.x[1]+dz*s.x[2])/dep/(s.w/2),ny=s.f*(dx*s.y[0]+dy*s.y[1]+dz*s.y[2])/dep/(s.h/2);if(Math.abs(nx)>lim||Math.abs(ny)>lim)continue;
+  const k=(Math.min(s.sh-1,(1-ny)/2*s.sh|0)*s.sw+Math.min(s.sw-1,(nx+1)/2*s.sw|0))*3;h.push(j,s.sm[k],s.sm[k+1],s.sm[k+2])}
+ if(h.length>4)P.push(h)}return P}
+function solve(A,n){for(let i=0;i<n;i++){let p=i;for(let r=i+1;r<n;r++)if(Math.abs(A[r][i])>Math.abs(A[p][i]))p=r;[A[i],A[p]]=[A[p],A[i]];const d=A[i][i]||1e-9;
+ for(let r=i+1;r<n;r++){const f=A[r][i]/d;if(f)for(let c=i;c<=n;c++)A[r][c]-=f*A[i][c]}}
+ const x=new Float64Array(n);for(let i=n-1;i>=0;i--){let t=A[i][n];for(let j=i+1;j<n;j++)t-=A[i][j]*x[j];x[i]=t/(A[i][i]||1e-9)}return x}
+/* compensación de exposición y color por foto (mínimos cuadrados en las zonas solapadas) */
+function applyGains(S){const n=S.length,P=overlaps(S,40000,.85),cnt=new Float64Array(n*n),sm=new Float64Array(n*n*3);
+ for(const h of P)for(let a=0;a<h.length;a+=4)for(let b=0;b<h.length;b+=4){if(a==b)continue;const i=h[a],j=h[b];cnt[i*n+j]++;for(let c=0;c<3;c++)sm[(i*n+j)*3+c]+=h[a+1+c]/255}
+ for(let c=0;c<3;c++){const A=Array.from({length:n},()=>new Float64Array(n+1));
+  for(let i=0;i<n;i++){let N=0;for(let j=0;j<n;j++){const m=cnt[i*n+j];if(j==i||m<20)continue;N+=m;const a=sm[(i*n+j)*3+c]/m,b=sm[(j*n+i)*3+c]/m,w=m/.0016;A[i][i]+=w*a*a;A[i][j]-=w*a*b}
+   A[i][i]+=N/.01+1e-6;A[i][n]+=N/.01+1e-6}
+  const g=solve(A,n);S.forEach((s,i)=>s.g[c]=Math.max(.5,Math.min(2,g[i])))}}
+function blur(d,w,h,r){const t=new Uint8ClampedArray(d.length),o=new Uint8ClampedArray(d.length),n=2*r+1,cl=(v,m)=>v<0?0:v>m?m:v;
+ for(let y=0;y<h;y++)for(let c=0;c<3;c++){let s=0;const b=y*w*4+c;for(let x=-r;x<=r;x++)s+=d[b+cl(x,w-1)*4];for(let x=0;x<w;x++){t[b+x*4]=s/n;s+=d[b+cl(x+r+1,w-1)*4]-d[b+cl(x-r,w-1)*4]}}
+ for(let x=0;x<w;x++)for(let c=0;c<3;c++){let s=0;const b=x*4+c;for(let y=-r;y<=r;y++)s+=t[cl(y,h-1)*w*4+b];for(let y=0;y<h;y++){o[y*w*4+b]=s/n;s+=t[cl(y+r+1,h-1)*w*4+b]-t[cl(y-r,h-1)*w*4+b]}}
+ return o}
+/* error de solape para un FOV dado (menor = mejor alineado) */
+function fovErr(fov){for(const s of shots)if(!s.mu){let t=0;for(let k=0;k<s.sm.length;k+=3)t+=s.sm[k]*.299+s.sm[k+1]*.587+s.sm[k+2]*.114;s.mu=t/(s.sm.length/3)+1}
+ const S=shots.map(s=>prep(s,fov)),P=overlaps(S,8000,.85),L=(h,a)=>(h[a+1]*.299+h[a+2]*.587+h[a+3]*.114)/S[h[a]].mu;let e=0,n=0;
+ for(const h of P)for(let a=0;a<h.length;a+=4)for(let b=a+4;b<h.length;b+=4){e+=Math.abs(L(h,a)-L(h,b));n++}return n>30?e/n:1e9}
+async function autoFov(){let best=65,be=1e9;const t=()=>new Promise(r=>setTimeout(r,5));
+ for(let f=45;f<=95;f+=4){const e=fovErr(f);if(e<be){be=e;best=f}await t()}
+ for(let f=best-4;f<=best+4;f+=.5){const e=fovErr(f);if(e<be){be=e;best=f}await t()}return best}
+
+async function build(){
+ const W=+$('#sz').value,H=W/2,T=128,Q=+$('#uq').value,fov=+$('#fov').value,pc=$('#pc'),tick=()=>new Promise(r=>setTimeout(r,15)),say=t=>$('#cov').textContent=t;
+ show('res');$('#form').hidden=1;$('#vw').hidden=1;$('#prog').hidden=0;$('#prog').value=0;say('Preparando…');
+ let g=null;try{pc.width=W;pc.height=H;g=pc.getContext('2d')}catch(e){}
+ if(!g){alert('Este navegador no puede crear un lienzo de ese tamaño. Elige un tamaño menor.');show('levels');return}
+ await tick();const S=shots.map(s=>prep(s,fov));
+ if(Q>=1){say('Compensando exposición y color…');await tick();applyGains(S)}
+ if(Q>=2){say('Preparando mezcla multibanda…');await tick();for(const s of S){const r=Math.max(4,s.w/90|0);s.l=blur(blur(s.d,s.w,s.h,r),s.w,s.h,r)}}
+ const strip=g.createImageData(W,T),o=strip.data,t0=performance.now();let cov=0;
+ for(let ty=0;ty<H;ty+=T){
+  for(let tx=0;tx<W;tx+=T){
+   const c0=(.5-(ty+T/2)/H)*Math.PI,cn=((tx+T/2)/W*2-1)*Math.PI,dc=[Math.cos(c0)*Math.sin(cn),Math.cos(c0)*Math.cos(cn),Math.sin(c0)];let rad=0;
+   for(const[ax,ay]of[[tx,ty],[tx+T,ty],[tx,ty+T],[tx+T,ty+T]]){const la=(.5-ay/H)*Math.PI,lo=(ax/W*2-1)*Math.PI,c=Math.cos(la);rad=Math.max(rad,Math.acos(Math.max(-1,Math.min(1,c*Math.sin(lo)*dc[0]+c*Math.cos(lo)*dc[1]+Math.sin(la)*dc[2]))))}
+   const C=S.filter(s=>Math.acos(Math.max(-1,Math.min(1,dc[0]*s.fw[0]+dc[1]*s.fw[1]+dc[2]*s.fw[2])))<s.ha+rad);
+   for(let y=ty;y<ty+T;y++){const lat=(.5-(y+.5)/H)*Math.PI,cl=Math.cos(lat),dz=Math.sin(lat);
+    for(let x=tx;x<tx+T;x++){const lon=((x+.5)/W*2-1)*Math.PI,dx=cl*Math.sin(lon),dy=cl*Math.cos(lon);let r=0,gg=0,b=0,ws=0,hr=0,hg=0,hb=0,hw=0;
+     for(const s of C){const dep=-(dx*s.z[0]+dy*s.z[1]+dz*s.z[2]);if(dep<s.cd)continue;
+      const nx=s.f*(dx*s.x[0]+dy*s.x[1]+dz*s.x[2])/dep/(s.w/2),ny=s.f*(dx*s.y[0]+dy*s.y[1]+dz*s.y[2])/dep/(s.h/2);
+      if(nx>=1||nx<=-1||ny>=1||ny<=-1)continue;const q=(1-nx*nx)*(1-ny*ny);if(q<.002)continue;
+      const u=(nx+1)/2*(s.w-1),v=(1-ny)/2*(s.h-1),x0=u|0,y0=v|0,fx=u-x0,fy=v-y0,k=(y0*s.w+x0)*4,k3=k+s.w*4,d=s.d,w0=(1-fx)*(1-fy),w1=fx*(1-fy),w2=(1-fx)*fy,w3=fx*fy,G=s.g,
+       o0=(d[k]*w0+d[k+4]*w1+d[k3]*w2+d[k3+4]*w3)*G[0],o1=(d[k+1]*w0+d[k+5]*w1+d[k3+1]*w2+d[k3+5]*w3)*G[1],o2=(d[k+2]*w0+d[k+6]*w1+d[k3+2]*w2+d[k3+6]*w3)*G[2];
+      if(Q<2){const w=q*q;r+=w*o0;gg+=w*o1;b+=w*o2;ws+=w}
+      else{const kk=(Math.round(v)*s.w+Math.round(u))*4,l=s.l,l0=l[kk]*G[0],l1=l[kk+1]*G[1],l2=l[kk+2]*G[2],q2=q*q,q4=q2*q2,wh=q4*q4;
+       r+=q*l0;gg+=q*l1;b+=q*l2;ws+=q;hr+=wh*(o0-l0);hg+=wh*(o1-l1);hb+=wh*(o2-l2);hw+=wh}}
+     const j=((y-ty)*W+x)*4;
+     if(ws>0){cov++;if(Q<2){o[j]=r/ws;o[j+1]=gg/ws;o[j+2]=b/ws}else{o[j]=r/ws+hr/hw;o[j+1]=gg/ws+hg/hw;o[j+2]=b/ws+hb/hw}}else{o[j]=27;o[j+1]=36;o[j+2]=48}o[j+3]=255}}}
+  g.putImageData(strip,0,ty);const dn=(ty+T)/H,el=(performance.now()-t0)/1000;$('#prog').value=dn;say(`Uniendo… ${dn*100|0} % · quedan ~${Math.round(el/dn*(1-dn))} s`);await tick()}
+ const pv=document.createElement('canvas');pv.width=2048;pv.height=1024;const pg=pv.getContext('2d');pg.imageSmoothingQuality='high';pg.drawImage(pc,0,0,2048,1024);pano=pg.getImageData(0,0,2048,1024);
+ const pct=cov/(W*H)*100|0;let sp=0;for(const a of shots)for(const b of shots)sp=Math.max(sp,Math.acos(Math.max(-1,Math.min(1,a.z[0]*b.z[0]+a.z[1]*b.z[1]+a.z[2]*b.z[2])))/D);
+ const s0=shots[0];vy=Math.atan2(-s0.z[0],-s0.z[1])/D;vp=Math.asin(Math.max(-1,Math.min(1,-s0.z[2])))/D;
+ say(`Cobertura: ${pct}% de la esfera`+(sp<10?'. ⚠ Todas las fotos tienen la misma orientación: el giroscopio no envió datos (usa un móvil con HTTPS o localhost) o no giraste el móvil.':pct<30?'. ⚠ Cobertura baja: completa más niveles.':''));
+ $('#prog').hidden=1;$('#vw').hidden=0;$('#form').hidden=0;view()}
 
 /* ---------- Vista previa ---------- */
 function view(){if(!pano)return;const c=$('#vw'),w=c.width,h=c.height,g=c.getContext('2d'),im=g.createImageData(w,h),o=im.data,W=pano.width,H=pano.height,p=pano.data,
@@ -228,7 +294,8 @@ function view(){if(!pano)return;const c=$('#vw'),w=c.width,h=c.height,g=c.getCon
 /* ---------- Exportación con metadatos XMP (GPano + Dublin Core) ---------- */
 async function download(){const pc=$('#pc'),W=pc.width,H=pc.height,g=pc.getContext('2d');
  if($('#nw').checked){g.save();g.fillStyle='#ffffffcc';g.font=`bold ${H*.03|0}px sans-serif`;g.textAlign='center';g.textBaseline='middle';g.translate(W/2,H*.965);g.scale(7,1);g.fillText('GmedranoTIC',0,0);g.restore()}
- const bl=await new Promise(r=>pc.toBlob(r,'image/jpeg',.92)),b=new Uint8Array(await bl.arrayBuffer()),
+ const bl=await new Promise(r=>pc.toBlob(r,'image/jpeg',.92));if(!bl){alert('No se pudo codificar una imagen tan grande en este navegador. Genera un tamaño menor.');return}
+ const b=new Uint8Array(await bl.arrayBuffer()),
  e=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])),
  alt=s=>`<rdf:Alt><rdf:li xml:lang="x-default">${e(s)}</rdf:li></rdf:Alt>`,
  tags=$('#k').value.split(',').map(s=>s.trim()).filter(Boolean).map(s=>`<rdf:li>${e(s)}</rdf:li>`).join('');
@@ -246,6 +313,9 @@ $('#back').onclick=()=>show('levels');$('#back2').onclick=()=>show('levels');
 $('#shut').onclick=()=>{const p=pose(),T=tgts(p),L=LV[cur];let bi=null,bd=999;T.forEach(t=>{if(!shots.some(s=>s.l==cur&&s.i==t.i)){const d=Math.abs(((t.y-p.yaw+540)%360)-180);if(d<bd){bd=d;bi=t.i}}});snap(bi)};
 $('#undo').onclick=()=>{for(let i=shots.length-1;i>=0;i--)if(shots[i].l==cur){shots.splice(i,1);break}if(!shots.length)ref=null;hud()};
 $('#fov').oninput=e=>$('#fv').textContent=e.target.value+'°';
+$('#den').onchange=e=>{if(shots.length&&!confirm('Cambiar la densidad borra las fotos actuales. ¿Continuar?')){e.target.value=den;return}den=e.target.value;shots=[];ref=null;setLV(den);renderLv()};
+$('#af').onclick=async()=>{if(shots.length<6){alert('Captura al menos 6 fotos con zonas solapadas.');return}const b=$('#af');b.disabled=1;b.textContent='Calculando…';await new Promise(r=>setTimeout(r,30));
+ const f=await autoFov();$('#fov').value=f;$('#fv').textContent=f+'°';b.disabled=0;b.textContent='Autoajustar'};
 $('#gen').onclick=build;$('#dl').onclick=download;
 $('#clr').onclick=()=>{if(confirm('¿Borrar todas las fotos capturadas?')){shots=[];ref=null;renderLv()}};
 loop();
